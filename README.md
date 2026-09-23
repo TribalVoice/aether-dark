@@ -14,4 +14,3 @@ Dual-voice drone instrument in the Aether series. Browser-based: two analog-styl
 
 **Support:** [ko-fi.com/tribalvoice](https://ko-fi.com/tribalvoice)
 
-Not affiliated with Dubreq or Stylophone.
