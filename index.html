@@ -685,7 +685,7 @@
     tap Share, then tap Safari. Or host the file on a website and open the https link in Safari.
   </div>
   <h1>Aether Dark</h1>
-  <p class="build-id">Build 2026-09-24f</p>
+  <p class="build-id">Build 2026-09-24g</p>
   <p class="sub">
     Dual-voice drone synthesizer in the Aether series. Two analog-style oscillators,
     a shared drift LFO with unusual shapes, dual 12 dB LP/HP filters, modulated echo
@@ -1742,8 +1742,20 @@
         else nodes.noiseColor.frequency.setTargetAtTime(12000, t, 0.08);
       }
     }
-    nodes.v1.vol.gain.setTargetAtTime(state.d1vol * 0.6 * midi.g1, t, 0.02);
-    nodes.v2.vol.gain.setTargetAtTime(state.d2vol * 0.6 * midi.g2, t, 0.02);
+    const mute1 = (state.d1vol * midi.g1) < 0.008;
+    const mute2 = (state.d2vol * midi.g2) < 0.008;
+    nodes.v1.vol.gain.setTargetAtTime(mute1 ? 0 : state.d1vol * 0.6 * midi.g1, t, mute1 ? 0.01 : 0.02);
+    nodes.v2.vol.gain.setTargetAtTime(mute2 ? 0 : state.d2vol * 0.6 * midi.g2, t, mute2 ? 0.01 : 0.02);
+    if (mute1) {
+      nodes.v1.gSaw.gain.value = 0; nodes.v1.gTri.gain.value = 0;
+      if (nodes.v1.gSin) nodes.v1.gSin.gain.value = 0;
+      nodes.v1.gSqr.gain.value = 0; nodes.v1.gSub.gain.value = 0;
+    }
+    if (mute2) {
+      nodes.v2.gSaw.gain.value = 0; nodes.v2.gTri.gain.value = 0;
+      if (nodes.v2.gSin) nodes.v2.gSin.gain.value = 0;
+      nodes.v2.gSqr.gain.value = 0; nodes.v2.gSub.gain.value = 0;
+    }
     nodes.v1.filter.type = state.d1mode;
     nodes.v2.filter.type = state.d2mode;
     nodes.v1.filter.Q.setTargetAtTime(0.4 + state.d1res * 0.55, t, 0.03);
@@ -1895,8 +1907,18 @@
     }
     if (state.d1oscDest === "xwave") x1 += osc1L * state.d1oscDepth * 0.5;
     if (state.d2oscDest === "xwave") x2 += osc2L * state.d2oscDepth * 0.5;
-    applyXWave(nodes.v1, Math.min(1, Math.max(0, x1)), state.d1mix);
-    applyXWave(nodes.v2, Math.min(1, Math.max(0, x2)), state.d2mix);
+    if ((state.d1vol * midi.g1) >= 0.008) applyXWave(nodes.v1, Math.min(1, Math.max(0, x1)), state.d1mix);
+    else {
+      nodes.v1.gSaw.gain.value = 0; nodes.v1.gTri.gain.value = 0;
+      if (nodes.v1.gSin) nodes.v1.gSin.gain.value = 0;
+      nodes.v1.gSqr.gain.value = 0; nodes.v1.gSub.gain.value = 0;
+    }
+    if ((state.d2vol * midi.g2) >= 0.008) applyXWave(nodes.v2, Math.min(1, Math.max(0, x2)), state.d2mix);
+    else {
+      nodes.v2.gSaw.gain.value = 0; nodes.v2.gTri.gain.value = 0;
+      if (nodes.v2.gSin) nodes.v2.gSin.gain.value = 0;
+      nodes.v2.gSqr.gain.value = 0; nodes.v2.gSub.gain.value = 0;
+    }
 
     const cut1 = state.d1cut * Math.pow(2, fil1L * (state.d1filDepth + irregF1) * 2.2 + (cv["v1-cut"] || 0) * 2 + (eTone ? evoWalk * eDepth * 1.15 : 0));
     const cut2 = state.d2cut * Math.pow(2, fil2L * (state.d2filDepth + irregF2) * 2.2 + (cv["v2-cut"] || 0) * 2 + (eTone ? evoWalk * eDepth * 0.9 : 0));
