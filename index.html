@@ -333,7 +333,7 @@
     border-color: #9fe8d6;
   }
   .jack.patched .hole { box-shadow: 0 0 6px #7ae0c866; }
-  .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .row { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
   .col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
   .label {
     font-size: 8px;
@@ -533,6 +533,25 @@
     color: #777;
     min-height: 12px;
   }
+  .evo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+    justify-items: center;
+    align-items: start;
+    margin-top: 2px;
+  }
+  .filter-block { margin-top: 14px; }
+  .filter-block .row { margin-top: 8px; }
+  .mixer-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .mixer-head .brand { text-align: right; flex: 0 0 auto; }
+  .noise-stack .row { justify-content: center; margin: 6px 0; }
   .knob-wrap { position: relative; width: 54px; height: 54px; touch-action: none; }
   .knob-wrap.lg { width: 78px; height: 78px; }
   .knob-wrap.md { width: 62px; height: 62px; }
@@ -717,7 +736,7 @@
     tap Share, then tap Safari. Or host the file on a website and open the https link in Safari.
   </div>
   <h1>Aether Dark</h1>
-  <p class="build-id">Build 2026-09-25g</p>
+  <p class="build-id">Build 2026-09-25h</p>
   <p class="sub">
     Dual-voice drone synthesizer in the Aether series. Two analog-style oscillators,
     a shared drift LFO with unusual shapes, dual 12 dB LP/HP filters, modulated echo
@@ -847,7 +866,7 @@
         <div class="jacks" style="width:auto;display:flex;margin:4px auto 6px">
           <div class="jack out" data-jack="evolve-out" data-dir="out" data-kind="cv"><div class="hole"></div>CV</div>
         </div>
-        <div class="row">
+        <div class="evo-grid">
           <div class="col">
             <div class="knob-wrap"><div class="knob" data-param="evoTime" data-min="45" data-max="480" data-curve="log" data-value="120"></div></div>
             <div class="label">Time</div>
@@ -857,8 +876,6 @@
             <div class="knob-wrap"><div class="knob" data-param="evoDepth" data-min="0" data-max="1" data-value="0"></div></div>
             <div class="label">Depth</div>
           </div>
-        </div>
-        <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="evoTarget" data-min="0" data-max="3" data-step="1" data-value="3"></div></div>
             <div class="label">Target</div>
@@ -924,17 +941,19 @@
             <div class="label">Pitch</div>
           </div>
         </div>
-        <div class="sec-title" style="margin-top:6px">Filter I</div>
+        <div class="sec-title filter-block">Filter I</div>
+        <div class="row" style="justify-content:center;margin-bottom:2px">
+          <div class="sw">
+            <div class="toggle" data-param="d1mode" data-on="highpass" data-off="lowpass"><div class="tab"></div></div>
+            <div class="label">LP / HP</div>
+          </div>
+        </div>
         <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="d1res" data-min="0" data-max="22" data-value="4"></div></div>
             <div class="label">Resonance</div>
           </div>
           <div class="col">
-            <div class="sw">
-              <div class="toggle" data-param="d1mode" data-on="highpass" data-off="lowpass"><div class="tab"></div></div>
-              <div class="label">LP / HP</div>
-            </div>
             <div class="knob-wrap"><div class="knob silver" data-param="d1filDepth" data-min="-1" data-max="1" data-value="0.25"></div></div>
             <div class="label">Filter LFO Depth</div>
           </div>
@@ -980,16 +999,6 @@
             <div class="label">Osc LFO Depth</div>
           </div>
         </div>
-        <div class="switch-row">
-          <div class="sw">
-            <div class="toggle" data-param="hardSync"><div class="tab"></div></div>
-            <div class="label">Hard Sync</div>
-          </div>
-          <div class="sw">
-            <div class="toggle on" data-param="pitchLink"><div class="tab"></div></div>
-            <div class="label">Pitch Link</div>
-          </div>
-        </div>
         <div class="jacks">
           <div class="jack in" data-jack="v2-pitch" data-dir="in" data-kind="cv"><div class="hole"></div>PITCH</div>
           <div class="jack in" data-jack="v2-pwm" data-dir="in" data-kind="cv"><div class="hole"></div>PWM</div>
@@ -1018,17 +1027,29 @@
             <div class="label">Pitch</div>
           </div>
         </div>
-        <div class="sec-title" style="margin-top:6px">Filter II</div>
+        <div class="switch-row">
+          <div class="sw">
+            <div class="toggle" data-param="hardSync"><div class="tab"></div></div>
+            <div class="label">Hard Sync</div>
+          </div>
+          <div class="sw">
+            <div class="toggle on" data-param="pitchLink"><div class="tab"></div></div>
+            <div class="label">Pitch Link</div>
+          </div>
+        </div>
+        <div class="sec-title filter-block">Filter II</div>
+        <div class="row" style="justify-content:center;margin-bottom:2px">
+          <div class="sw">
+            <div class="toggle on" data-param="d2mode" data-on="highpass" data-off="lowpass"><div class="tab"></div></div>
+            <div class="label">LP / HP</div>
+          </div>
+        </div>
         <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="d2res" data-min="0" data-max="22" data-value="6"></div></div>
             <div class="label">Resonance</div>
           </div>
           <div class="col">
-            <div class="sw">
-              <div class="toggle on" data-param="d2mode" data-on="highpass" data-off="lowpass"><div class="tab"></div></div>
-              <div class="label">LP / HP</div>
-            </div>
             <div class="knob-wrap"><div class="knob silver" data-param="d2filDepth" data-min="-1" data-max="1" data-value="-0.3"></div></div>
             <div class="label">Filter LFO Depth</div>
           </div>
@@ -1051,7 +1072,8 @@
         <div class="jacks">
           <div class="jack out" data-jack="noise-out" data-dir="out" data-kind="audio"><div class="hole"></div>OUT</div>
         </div>
-        <div class="row" style="justify-content:center">
+        <div class="noise-stack">
+        <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob" data-param="noiseLevel" data-min="0" data-max="1" data-value="0.12"></div></div>
             <div class="label">Level</div>
@@ -1063,6 +1085,8 @@
             <div class="label">Colour</div>
             <div class="wave-readout" id="noiseColorName">Pink</div>
           </div>
+        </div>
+        <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="noiseDest" data-min="0" data-max="3" data-step="1" data-value="1"></div></div>
             <div class="label">Dest</div>
@@ -1081,6 +1105,8 @@
             <div class="label">LFO Rate ×</div>
             <div class="wave-readout" id="noiseRateName">1.00×</div>
           </div>
+        </div>
+        <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="noiseOffset" data-min="0" data-max="1" data-value="0"></div></div>
             <div class="label">Phase Offset</div>
@@ -1088,11 +1114,12 @@
           </div>
         </div>
         <div class="label" style="margin-top:8px">Follows Wave I · Rate is a multiple of Drift</div>
+        </div>
       </div>
 
       <!-- MIXER / FX -->
       <div class="section">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="mixer-head">
           <div class="sec-title">Mixer</div>
           <div class="brand">AETHER DARK<small>DUAL VOICE DRONE</small></div>
         </div>
