@@ -238,10 +238,11 @@
   .rails {
     display: flex;
     justify-content: space-between;
-    color: #333;
+    color: #8a8a8a;
     font-size: 10px;
-    letter-spacing: 1px;
-    padding: 0 6px 8px;
+    letter-spacing: 0.16em;
+    padding: 0 8px 8px;
+    text-transform: uppercase;
   }
   .panel {
     background: var(--face);
@@ -344,17 +345,24 @@
   }
   .wave-readout {
     margin-top: 2px;
-    min-height: 28px;
-    width: 100%;
-    padding: 3px 4px;
+    min-height: 16px;
+    width: 58px;
+    max-width: 100%;
+    padding: 2px 3px;
     border: 1px solid #333;
     background: #0a0a0e;
     color: #9fe8d6;
-    font-size: 9px;
+    font-size: 8px;
     letter-spacing: 0.04em;
     text-align: center;
-    line-height: 1.25;
+    line-height: 1.2;
     font-variant-numeric: tabular-nums;
+  }
+  #noiseSec .wave-readout {
+    width: 54px;
+    min-height: 15px;
+    margin-left: auto;
+    margin-right: auto;
   }
   .pitch-row {
     display: flex;
@@ -508,10 +516,14 @@
   .tape-counter {
     text-align: center;
     font-variant-numeric: tabular-nums;
-    font-size: 11px;
-    letter-spacing: 0.12em;
+    font-size: 13px;
+    letter-spacing: 0.16em;
     color: #9fe8d6;
-    margin-bottom: 4px;
+    margin: 0 auto 6px;
+    width: 72px;
+    padding: 3px 0;
+    border: 1px solid #333;
+    background: #0a0a0e;
   }
   .tape-status {
     text-align: center;
@@ -627,10 +639,20 @@
   .logo {
     font-family: Georgia, "Times New Roman", serif;
     font-style: italic;
-    font-size: 18px;
+    font-size: 20px;
     text-align: right;
-    margin-top: 8px;
+    margin-top: 10px;
     letter-spacing: 0.02em;
+    line-height: 1;
+  }
+  .logo small {
+    display: block;
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    font-style: normal;
+    font-size: 8px;
+    letter-spacing: 0.22em;
+    color: #8a8a8a;
+    margin-top: 3px;
   }
   .brand {
     font-size: 22px;
@@ -695,7 +717,7 @@
     tap Share, then tap Safari. Or host the file on a website and open the https link in Safari.
   </div>
   <h1>Aether Dark</h1>
-  <p class="build-id">Build 2026-09-25f</p>
+  <p class="build-id">Build 2026-09-25g</p>
   <p class="sub">
     Dual-voice drone synthesizer in the Aether series. Two analog-style oscillators,
     a shared drift LFO with unusual shapes, dual 12 dB LP/HP filters, modulated echo
@@ -1041,8 +1063,6 @@
             <div class="label">Colour</div>
             <div class="wave-readout" id="noiseColorName">Pink</div>
           </div>
-        </div>
-        <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="noiseDest" data-min="0" data-max="3" data-step="1" data-value="1"></div></div>
             <div class="label">Dest</div>
@@ -1061,8 +1081,6 @@
             <div class="label">LFO Rate ×</div>
             <div class="wave-readout" id="noiseRateName">1.00×</div>
           </div>
-        </div>
-        <div class="row">
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="noiseOffset" data-min="0" data-max="1" data-value="0"></div></div>
             <div class="label">Phase Offset</div>
@@ -1176,7 +1194,7 @@
             </div>
           </div>
         </div>
-        <div class="logo">Aether</div>
+        <div class="logo">Aether<small>DARK</small></div>
         <div class="meter"><span id="meter"></span><i id="meterPeak"></i></div>
       </div>
       <svg class="cables" id="cableLayer"></svg>
@@ -2018,10 +2036,18 @@
     const holdEl = document.getElementById("meterPeak");
     if (holdEl) holdEl.style.left = meterHold + "%";
     }
-    if (tape.mode === "rec" && ctx) {
-      document.getElementById("tapeClock").textContent = tapeClockFmt(tape.length / ctx.sampleRate);
-    } else if (tape.mode === "play" && ctx) {
-      document.getElementById("tapeClock").textContent = tapeClockFmt(ctx.currentTime - tape.playStarted);
+    const clock = document.getElementById("tapeClock");
+    if (clock && ctx) {
+      if (tape.mode === "rec" && tape.startedAt != null) {
+        clock.textContent = tapeClockFmt(ctx.currentTime - tape.startedAt);
+      } else if (tape.mode === "play" && tape.playStarted != null) {
+        const dur = tape.buffer ? tape.buffer.duration : (tape.length / ctx.sampleRate);
+        clock.textContent = tapeClockFmt(Math.min(dur, ctx.currentTime - tape.playStarted));
+      } else if (tape.buffer) {
+        clock.textContent = tapeClockFmt(tape.buffer.duration);
+      } else if (tape.length) {
+        clock.textContent = tapeClockFmt(tape.length / ctx.sampleRate);
+      }
     }
 
     rafId = requestAnimationFrame(tick);
