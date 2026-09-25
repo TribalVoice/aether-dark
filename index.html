@@ -656,17 +656,27 @@
   }
   .meter {
     width: 100%;
-    height: 6px;
+    height: 8px;
     background: #111;
     border: 1px solid #333;
     margin-top: 10px;
     overflow: hidden;
+    position: relative;
   }
   .meter > span {
     display: block;
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, #3a3, #cc3, #c33);
+    background: linear-gradient(90deg, #2a6a3a 0%, #8a8a28 62%, #c48a20 82%, #c33 96%);
+  }
+  .meter > i {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: #eee;
+    left: 0;
+    opacity: 0.85;
+    pointer-events: none;
   }
   @media (max-width: 980px) {
     .panel { grid-template-columns: 1fr 1fr; }
@@ -685,7 +695,7 @@
     tap Share, then tap Safari. Or host the file on a website and open the https link in Safari.
   </div>
   <h1>Aether Dark</h1>
-  <p class="build-id">Build 2026-09-24h</p>
+  <p class="build-id">Build 2026-09-25f</p>
   <p class="sub">
     Dual-voice drone synthesizer in the Aether series. Two analog-style oscillators,
     a shared drift LFO with unusual shapes, dual 12 dB LP/HP filters, modulated echo
@@ -757,11 +767,6 @@
   <div class="chassis">
     <div class="rails">
       <span>AETHER SERIES</span>
-      <span class="sw" style="gap:8px">
-        <span class="label" style="margin:0">Dark</span>
-        <div class="toggle" data-param="dusk" data-on="1" data-off="0" title="Dark: square–triangle–saw. Dusk: adds sine in the middle."><div class="tab"></div></div>
-        <span class="label" style="margin:0">Dusk</span>
-      </span>
       <span>DUAL VOICE DRONE</span>
     </div>
     <div class="panel" id="panel">
@@ -1142,7 +1147,7 @@
               <div class="label">Sat</div>
             </div>
             <div class="col">
-              <div class="knob-wrap"><div class="knob silver" data-param="tapeWow" data-min="0" data-max="1" data-value="0.18"></div></div>
+              <div class="knob-wrap"><div class="knob silver" data-param="tapeWow" data-min="0" data-max="1" data-value="0.08"></div></div>
               <div class="label">Wow</div>
             </div>
             <div class="col">
@@ -1151,8 +1156,28 @@
             </div>
           </div>
         </div>
+        <div class="row" style="margin-top:8px">
+          <div class="col">
+            <div class="knob-wrap"><div class="knob" data-param="rumble" data-min="18" data-max="160" data-curve="log" data-value="22"></div></div>
+            <div class="label">Rumble HPF</div>
+            <div class="wave-readout" id="rumbleName">22 Hz</div>
+          </div>
+          <div class="col">
+            <div class="sw">
+              <div class="toggle" data-param="fxDry" data-on="1" data-off="0" title="Bypass Echo and Bloom"><div class="tab"></div></div>
+              <div class="label">FX / Dry</div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="sw" style="gap:6px">
+              <div class="label">Dark</div>
+              <div class="toggle" data-param="dusk" data-on="1" data-off="0" title="Dark: square–triangle–saw. Dusk: adds sine in the middle."><div class="tab"></div></div>
+              <div class="label">Dusk</div>
+            </div>
+          </div>
+        </div>
         <div class="logo">Aether</div>
-        <div class="meter"><span id="meter"></span></div>
+        <div class="meter"><span id="meter"></span><i id="meterPeak"></i></div>
       </div>
       <svg class="cables" id="cableLayer"></svg>
     </div>
@@ -1172,8 +1197,9 @@
 <script>
 (() => {
   const LITE = /Android|Pixel|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-  const meterBuf = new Uint8Array(128);
+  const meterBuf = new Uint8Array(512);
   let tickN = 0;
+  let meterHold = 0;
   const warn = document.getElementById("filesWarn");
   const proto = location.protocol;
   function hideFilesWarn() {
@@ -1208,7 +1234,8 @@
     delayMix: 0.28, revMix: 0.35, master: 0.55,
     delayTime: 0.22, delaySrc: 1, delayDepth: 0.2, delayFb: 0.35,
     stereo: 1, algo: 5,
-    tapeOn: 1, tapeSat: 0.35, tapeWow: 0.18, tapeWear: 0.25,
+    tapeOn: 1, tapeSat: 0.35, tapeWow: 0.08, tapeWear: 0.25,
+    rumble: 22, fxDry: 0,
     noiseLevel: 0.12, noiseColor: 1, noiseDest: 1,
     noiseLfoDepth: 0, noiseRate: 1, noiseOffset: 0,
     evoTime: 120, evoDepth: 0, evoTarget: 3, evoIrreg: 0, evoOnce: 0,
@@ -1257,6 +1284,8 @@
       et.textContent = s >= 90 ? (s / 60).toFixed(1) + " min" : Math.round(s) + " s";
     }
     if (eg) eg.textContent = EVO_TARGET_NAMES[state.evoTarget | 0] || "All";
+    const rb = document.getElementById("rumbleName");
+    if (rb) rb.textContent = Math.round(state.rumble || 22) + " Hz";
   }
   function paintOffset() {
     const el = document.getElementById("offsetRead");
@@ -1302,7 +1331,7 @@
     "d1mix","d1sub","d1xwave","d1oscDest","d1oscDepth","d1pitch","d1res","d1mode","d1filDepth","d1cut","d1vol",
     "d2mix","d2sub","d2xwave","d2oscDest","d2oscDepth","hardSync","pitchLink","d2offset","d2pitch","d2res","d2mode","d2filDepth","d2cut","d2vol",
     "delayMix","revMix","master","delayTime","delaySrc","delayDepth","delayFb","stereo","algo",
-    "tapeOn","tapeSat","tapeWow","tapeWear",
+    "tapeOn","tapeSat","tapeWow","tapeWear","rumble","fxDry",
     "noiseLevel","noiseColor","noiseDest","noiseLfoDepth","noiseRate","noiseOffset",
     "evoTime","evoDepth","evoTarget","evoIrreg","evoOnce","dusk"
   ];
@@ -1461,7 +1490,8 @@
     const master = ctx.createGain();
     master.gain.value = 0.5;
     const analyser = ctx.createAnalyser();
-    analyser.fftSize = LITE ? 128 : 256;
+    analyser.fftSize = LITE ? 256 : 512;
+    analyser.smoothingTimeConstant = 0.25;
 
     const delay = ctx.createDelay(0.6);
     delay.delayTime.value = 0.22;
@@ -1500,22 +1530,11 @@
     const v1 = createVoice(ctx, voiceBus);
     const v2 = createVoice(ctx, voiceBus);
 
-    const nlen = Math.floor(ctx.sampleRate * (LITE ? 4 : 8));
+    const nlen = Math.floor(ctx.sampleRate * (LITE ? 3 : 6));
     const nbuf = ctx.createBuffer(1, nlen, ctx.sampleRate);
     const nd = nbuf.getChannelData(0);
-    let n0 = 0, n1 = 0, n2 = 0;
-    for (let i = 0; i < nlen; i++) {
-      const w = Math.random() * 2 - 1;
-      n0 = 0.997 * n0 + 0.003 * w;
-      n1 = 0.98 * n1 + 0.02 * w;
-      n2 = 0.9 * n2 + 0.1 * w;
-      nd[i] = w * 0.35 + n2 * 0.35 + n1 * 0.2 + n0 * 0.1;
-    }
-    let mean = 0;
-    for (let i = 0; i < nlen; i++) mean += nd[i];
-    mean /= nlen;
-    const fade = Math.min(4096, nlen >> 3);
-    for (let i = 0; i < nlen; i++) nd[i] -= mean;
+    for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
+    const fade = 256;
     for (let i = 0; i < fade; i++) {
       const t = i / fade;
       nd[nlen - fade + i] = nd[nlen - fade + i] * (1 - t) + nd[i] * t;
@@ -1636,12 +1655,17 @@
     hissG.connect(tapeWet);
     tapeDry.connect(tapeSum);
     tapeWet.connect(tapeSum);
-    tapeSum.connect(master);
+    const rumble = ctx.createBiquadFilter();
+    rumble.type = "highpass";
+    rumble.frequency.value = 22;
+    rumble.Q.value = 0.7;
+    tapeSum.connect(rumble);
+    rumble.connect(master);
     master.connect(analyser);
     analyser.connect(ctx.destination);
 
     const recGain = ctx.createGain(); recGain.gain.value = 0;
-    tapeSum.connect(recGain);
+    rumble.connect(recGain);
     let recDest = null;
     try { recDest = ctx.createMediaStreamDestination(); recGain.connect(recDest); } catch (e) { recDest = null; }
     const recProc = null;
@@ -1653,7 +1677,7 @@
       master, analyser, delay, delayFb, delayWet, delayDry, conv, revWet, revDry, revLp,
       v1, v2, chorusL, chorusR, chLfo, auxGain, audioMods: [],
       tapeDry, tapePre, tapeShape, tapeWow, tapeWowG, tapeFlutG, tapeWowLfo, tapeFlut,
-      tapeHp, tapeLp, tapeMakeup, tapeWet, hissG, recGain, recDest, recProc,
+      tapeHp, tapeLp, tapeMakeup, tapeWet, hissG, recGain, recDest, recProc, rumble,
       noiseSrc, noiseBufG, noiseColor, noiseOut, noiseToMix, noiseToF1, noiseToF2, noiseFilt1, noiseFilt2, noiseSh, noiseShG,
     };
     rebuildAudioPatches();
@@ -1721,19 +1745,30 @@
       if (nodes.tapeMakeup) nodes.tapeMakeup.gain.setTargetAtTime(0.86 - sat * 0.06, t, 0.04);
       nodes.tapeWet.gain.setTargetAtTime(on * 0.48, t, 0.04);
       nodes.tapeDry.gain.setTargetAtTime(on ? 0.66 : 1, t, 0.04);
-      nodes.tapeWowG.gain.setTargetAtTime(0.0004 + state.tapeWow * 0.0032, t, 0.05);
-      nodes.tapeFlutG.gain.setTargetAtTime(0.00008 + state.tapeWow * 0.00055, t, 0.05);
-      nodes.tapeWowLfo.frequency.setTargetAtTime(0.25 + state.tapeWow * 0.7, t, 0.08);
+      const wow = Math.pow(Math.max(0, state.tapeWow || 0), 2.2);
+      nodes.tapeWowG.gain.setTargetAtTime(wow * 0.0026, t, 0.05);
+      nodes.tapeFlutG.gain.setTargetAtTime(wow * 0.00038, t, 0.05);
+      nodes.tapeWowLfo.frequency.setTargetAtTime(0.28 + wow * 0.45, t, 0.08);
       nodes.tapeLp.frequency.setTargetAtTime(12000 - state.tapeWear * 8500, t, 0.08);
       nodes.tapeHp.frequency.setTargetAtTime(30 + state.tapeWear * 80, t, 0.08);
       nodes.hissG.gain.setTargetAtTime(LITE ? 0 : on * state.tapeWear * 0.012, t, 0.08);
     }
     nodes.delay.delayTime.setTargetAtTime(state.delayTime, t, 0.05);
     nodes.delayFb.gain.setTargetAtTime(state.delayFb, t, 0.03);
-    nodes.delayWet.gain.setTargetAtTime(state.delayMix, t, 0.03);
-    nodes.delayDry.gain.setTargetAtTime(1 - state.delayMix * 0.7, t, 0.03);
-    nodes.revWet.gain.setTargetAtTime(state.revMix, t, 0.04);
-    nodes.revDry.gain.setTargetAtTime(1 - state.revMix * 0.55, t, 0.04);
+    if (state.fxDry) {
+      nodes.delayWet.gain.setTargetAtTime(0, t, 0.03);
+      nodes.delayDry.gain.setTargetAtTime(1, t, 0.03);
+      nodes.revWet.gain.setTargetAtTime(0, t, 0.04);
+      nodes.revDry.gain.setTargetAtTime(1, t, 0.04);
+    } else {
+      nodes.delayWet.gain.setTargetAtTime(state.delayMix, t, 0.03);
+      nodes.delayDry.gain.setTargetAtTime(1 - state.delayMix * 0.7, t, 0.03);
+      nodes.revWet.gain.setTargetAtTime(state.revMix, t, 0.04);
+      nodes.revDry.gain.setTargetAtTime(1 - state.revMix * 0.55, t, 0.04);
+    }
+    if (nodes.rumble) {
+      nodes.rumble.frequency.setTargetAtTime(Math.max(18, state.rumble || 22), t, 0.05);
+    }
 
     const a = ALGOS[state.algo | 0];
     document.getElementById("algoName").textContent = a.name;
@@ -1965,11 +2000,23 @@
     nodes.delay.delayTime.setTargetAtTime(Math.max(0.04, Math.min(0.55, dly)), t, 0.03);
 
     if (ui) {
-    const n = Math.min(meterBuf.length, nodes.analyser.frequencyBinCount);
+    const n = Math.min(meterBuf.length, nodes.analyser.fftSize);
     nodes.analyser.getByteTimeDomainData(meterBuf);
-    let peak = 0;
-    for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(meterBuf[i] - 128));
-    document.getElementById("meter").style.width = Math.min(100, peak * 1.6) + "%";
+    let peak = 0, sum = 0;
+    for (let i = 0; i < n; i++) {
+      const x = (meterBuf[i] - 128) / 128;
+      const a = Math.abs(x);
+      if (a > peak) peak = a;
+      sum += x * x;
+    }
+    const rms = Math.sqrt(sum / Math.max(1, n));
+    const shown = Math.min(1, peak * 0.72 + rms * 1.15);
+    const pct = Math.min(100, Math.pow(shown, 0.55) * 112);
+    document.getElementById("meter").style.width = pct + "%";
+    if (pct > meterHold) meterHold = pct;
+    else meterHold = Math.max(0, meterHold - (LITE ? 1.8 : 1.1));
+    const holdEl = document.getElementById("meterPeak");
+    if (holdEl) holdEl.style.left = meterHold + "%";
     }
     if (tape.mode === "rec" && ctx) {
       document.getElementById("tapeClock").textContent = tapeClockFmt(tape.length / ctx.sampleRate);
@@ -2285,7 +2332,7 @@
       const off = Math.pow(2, (state.d2offset || 0) / 12);
       paintTuners(state.d1pitch, state.pitchLink ? state.d1pitch * off : state.d2pitch);
     }
-    if (el.dataset.param === "wave1" || el.dataset.param === "wave2" || el.dataset.param === "noiseColor" || el.dataset.param === "noiseDest" || el.dataset.param === "noiseRate" || el.dataset.param === "noiseOffset" || el.dataset.param === "evoTime" || el.dataset.param === "evoTarget") paintWaveNames();
+    if (el.dataset.param === "wave1" || el.dataset.param === "wave2" || el.dataset.param === "noiseColor" || el.dataset.param === "noiseDest" || el.dataset.param === "noiseRate" || el.dataset.param === "noiseOffset" || el.dataset.param === "evoTime" || el.dataset.param === "evoTarget" || el.dataset.param === "rumble") paintWaveNames();
     if (running) { updateStatic(); maybeRebuildReverb(); }
   }
 
@@ -2662,6 +2709,8 @@
     if (p.evoIrreg == null) state.evoIrreg = 0;
     if (p.evoOnce == null) state.evoOnce = 0;
     if (p.dusk == null) state.dusk = 0;
+    if (p.rumble == null) state.rumble = 22;
+    if (p.fxDry == null) state.fxDry = 0;
     resetEvolve();
     state.cables = Array.isArray(p.cables) ? p.cables.map(c => ({ from: c.from, to: c.to })) : [];
     writeParams();
