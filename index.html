@@ -736,7 +736,7 @@
     tap Share, then tap Safari. Or host the file on a website and open the https link in Safari.
   </div>
   <h1>Aether Dark</h1>
-  <p class="build-id">Build 2026-09-25h</p>
+  <p class="build-id">Build 2026-09-25i</p>
   <p class="sub">
     Dual-voice drone synthesizer in the Aether series. Two analog-style oscillators,
     a shared drift LFO with unusual shapes, dual 12 dB LP/HP filters, modulated echo
@@ -1854,8 +1854,7 @@
     }
     nodes.v1.filter.type = state.d1mode;
     nodes.v2.filter.type = state.d2mode;
-    nodes.v1.filter.Q.setTargetAtTime(0.4 + state.d1res * 0.55, t, 0.03);
-    nodes.v2.filter.Q.setTargetAtTime(0.4 + state.d2res * 0.55, t, 0.03);
+    /* Q is set in tick so a pitch sweep can ease resonance */
 
     applyXWave(nodes.v1, state.d1xwave, state.d1mix);
     applyXWave(nodes.v2, state.d2xwave, state.d2mix);
@@ -1984,10 +1983,19 @@
     }
 
     const t = ctx.currentTime;
+    if (!tick._sp1) { tick._sp1 = p1; tick._sp2 = p2; }
+    const octDelta = (a, b) => Math.log2(Math.max(10, b) / Math.max(10, a));
+    const pitchMoving = Math.abs(octDelta(tick._sp1, p1)) > 0.012 || Math.abs(octDelta(tick._sp2, p2)) > 0.012;
+    const maxOct = (pitchMoving ? 5 : 10) * dt;
+    const slewHz = (cur, tgt) => cur * Math.pow(2, Math.max(-maxOct, Math.min(maxOct, octDelta(cur, tgt))));
+    tick._sp1 = slewHz(tick._sp1, p1);
+    tick._sp2 = slewHz(tick._sp2, p2);
+    p1 = tick._sp1;
+    p2 = tick._sp2;
     const setF = (osc, f) => {
       f = Math.max(10, Math.min(8000, f));
-      if (LITE) osc.frequency.value = f;
-      else osc.frequency.setTargetAtTime(f, t, 0.012);
+      if (LITE) osc.frequency.setTargetAtTime(f, t, 0.03);
+      else osc.frequency.setTargetAtTime(f, t, 0.04);
     };
     const oct = (n) => Math.pow(2, n);
     setF(nodes.v1.saw, p1); setF(nodes.v1.tri, p1); setF(nodes.v1.sin, p1); setF(nodes.v1.sqr, p1);
@@ -2021,12 +2029,15 @@
     const c1 = Math.max(30, Math.min(16000, cut1));
     const c2 = Math.max(30, Math.min(16000, cut2));
     if (LITE) {
-      nodes.v1.filter.frequency.value = c1;
-      nodes.v2.filter.frequency.value = c2;
+      nodes.v1.filter.frequency.setTargetAtTime(c1, t, 0.03);
+      nodes.v2.filter.frequency.setTargetAtTime(c2, t, 0.03);
     } else {
-      nodes.v1.filter.frequency.setTargetAtTime(c1, t, 0.02);
-      nodes.v2.filter.frequency.setTargetAtTime(c2, t, 0.02);
+      nodes.v1.filter.frequency.setTargetAtTime(c1, t, 0.035);
+      nodes.v2.filter.frequency.setTargetAtTime(c2, t, 0.035);
     }
+    const qEase = pitchMoving ? 0.38 : 1;
+    nodes.v1.filter.Q.setTargetAtTime((0.4 + state.d1res * 0.55) * qEase, t, 0.06);
+    nodes.v2.filter.Q.setTargetAtTime((0.4 + state.d2res * 0.55) * qEase, t, 0.06);
     if (nodes.noiseFilt1) {
       nodes.noiseFilt1.type = state.d1mode;
       nodes.noiseFilt1.Q.value = Math.max(0.3, state.d1res * 0.45);
