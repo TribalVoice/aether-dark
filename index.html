@@ -763,7 +763,7 @@
     tap Share, then tap Safari. Or host the file on a website and open the https link in Safari.
   </div>
   <h1>Aether Dark</h1>
-  <p class="build-id">Build 2026-09-25j</p>
+  <p class="build-id">Build 2026-09-25k</p>
   <p class="sub">
     Dual-voice drone synthesizer in the Aether series. Two analog-style oscillators,
     a shared drift LFO with unusual shapes, dual 12 dB LP/HP filters, modulated echo
@@ -938,6 +938,8 @@
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="d1xwave" data-min="0" data-max="1" data-value="0.85"></div></div>
             <div class="label">X-Wave □ △ ○ ⌐</div>
+            <div class="knob-wrap"><div class="knob silver" data-param="d1fold" data-min="0" data-max="1" data-value="0"></div></div>
+            <div class="label">Fold</div>
           </div>
           <div class="col">
             <div class="sw">
@@ -1016,6 +1018,8 @@
           <div class="col">
             <div class="knob-wrap"><div class="knob silver" data-param="d2xwave" data-min="0" data-max="1" data-value="0.2"></div></div>
             <div class="label">X-Wave □ △ ○ ⌐</div>
+            <div class="knob-wrap"><div class="knob silver" data-param="d2fold" data-min="0" data-max="1" data-value="0"></div></div>
+            <div class="label">Fold</div>
           </div>
           <div class="col">
             <div class="sw">
@@ -1256,7 +1260,7 @@
   </div>
 
   <p class="footer">
-    <span class="build-id">Build 2026-09-25j</span><br>
+    <span class="build-id">Build 2026-09-25k</span><br>
     Part of the Aether instruments. Original dual-voice drone — not affiliated with any
     hardware manufacturer. Use headphones. Click POWER to enable audio.
     MIDI: notes set oscillator pitch, pitch-bend ±2 st, CC1 LFO rate, CC7 master,
@@ -1299,9 +1303,9 @@
   const state = {
     wave1: 1, wave2: 2, lfoRate: 0.4,
     osc1Src: 1, osc2Src: 1, fil1Src: 1, fil2Src: 1,
-    d1mix: 0.35, d1sub: -1, d1xwave: 0.85, d1oscDest: "pitch", d1oscDepth: 0.15,
+    d1mix: 0.35, d1sub: -1, d1xwave: 0.85, d1fold: 0, d1oscDest: "pitch", d1oscDepth: 0.15,
     d1pitch: 110, d1res: 4, d1mode: "lowpass", d1filDepth: 0.25, d1cut: 800, d1vol: 0.55,
-    d2mix: 0.25, d2sub: -1, d2xwave: 0.2, d2oscDest: "pitch", d2oscDepth: -0.12,
+    d2mix: 0.25, d2sub: -1, d2xwave: 0.2, d2fold: 0, d2oscDest: "pitch", d2oscDepth: -0.12,
     hardSync: 0, pitchLink: 1, d2offset: 7,
     d2pitch: 165, d2res: 6, d2mode: "highpass", d2filDepth: -0.3, d2cut: 1400, d2vol: 0.45,
     delayMix: 0.28, revMix: 0.35, master: 0.55,
@@ -1547,10 +1551,28 @@
     sin.connect(gSin);
     sub.connect(gSub);
     gSaw.connect(mix); gTri.connect(mix); gSin.connect(mix); gSqr.connect(mix); gSub.connect(mix);
-    mix.connect(shaper); shaper.connect(filter); filter.connect(air); air.connect(vol); vol.connect(dest);
+    const foldDrive = ctx.createGain(); foldDrive.gain.value = 1;
+    const foldDry = ctx.createGain(); foldDry.gain.value = 1;
+    const foldWet = ctx.createGain(); foldWet.gain.value = 0;
+    const folder = ctx.createWaveShaper();
+    const fc = new Float32Array(2048);
+    for (let i = 0; i < 2048; i++) {
+      const x = i / 1023 - 1;
+      let y = x * 2.4;
+      for (let k = 0; k < 3; k++) {
+        if (y > 1) y = 2 - y;
+        else if (y < -1) y = -2 - y;
+      }
+      fc[i] = Math.max(-1, Math.min(1, y));
+    }
+    folder.curve = fc;
+    try { folder.oversample = "2x"; } catch (e) {}
+    mix.connect(foldDry); foldDry.connect(shaper);
+    mix.connect(foldDrive); foldDrive.connect(folder); folder.connect(foldWet); foldWet.connect(shaper);
+    shaper.connect(filter); filter.connect(air); air.connect(vol); vol.connect(dest);
 
     saw.start(); tri.start(); sin.start(); sqr.start(); sub.start();
-    return { saw, tri, sin, sqr, sub, gSaw, gTri, gSin, gSqr, gSub, mix, filter, vol, edgeLp, air };
+    return { saw, tri, sin, sqr, sub, gSaw, gTri, gSin, gSqr, gSub, mix, filter, vol, edgeLp, air, foldDrive, foldDry, foldWet };
   }
 
   function boot() {
@@ -2033,10 +2055,24 @@
 
     let x1 = state.d1xwave + (cv["v1-pwm"] || 0) * 0.45;
     let x2 = state.d2xwave + (cv["v2-pwm"] || 0) * 0.45;
+    let f1 = state.d1fold || 0;
+    let f2 = state.d2fold || 0;
     if (eTone) {
       x1 += evoWalk * eDepth * 0.22;
       x2 -= evoWalk * eDepth * 0.18;
+      f1 += evoWalk * eDepth * 0.28;
+      f2 -= evoWalk * eDepth * 0.22;
     }
+    f1 = Math.max(0, Math.min(1, f1));
+    f2 = Math.max(0, Math.min(1, f2));
+    const setFold = (voice, amt) => {
+      if (!voice.foldDrive) return;
+      voice.foldDrive.gain.setTargetAtTime(1 + amt * 5.2, t, 0.04);
+      voice.foldWet.gain.setTargetAtTime(amt * 0.82, t, 0.04);
+      voice.foldDry.gain.setTargetAtTime(1 - amt * 0.48, t, 0.04);
+    };
+    setFold(nodes.v1, f1);
+    setFold(nodes.v2, f2);
     if (state.d1oscDest === "xwave") x1 += osc1L * state.d1oscDepth * 0.5;
     if (state.d2oscDest === "xwave") x2 += osc2L * state.d2oscDepth * 0.5;
     if ((state.d1vol * midi.g1) >= 0.008) applyXWave(nodes.v1, Math.min(1, Math.max(0, x1)), state.d1mix);
@@ -2120,6 +2156,8 @@
     if (!LITE || (tickN % 3 === 0)) {
       paintLean("d1xwave", Math.max(0, Math.min(1, state.d1xwave + (eTone ? evoWalk * eDepth * 0.22 : 0))), eOn && eTone);
       paintLean("d2xwave", Math.max(0, Math.min(1, state.d2xwave - (eTone ? evoWalk * eDepth * 0.18 : 0))), eOn && eTone);
+      paintLean("d1fold", Math.max(0, Math.min(1, (state.d1fold || 0) + (eTone ? evoWalk * eDepth * 0.28 : 0))), eOn && eTone);
+      paintLean("d2fold", Math.max(0, Math.min(1, (state.d2fold || 0) - (eTone ? evoWalk * eDepth * 0.22 : 0))), eOn && eTone);
       paintLean("d1cut", state.d1cut * Math.pow(2, eTone ? evoWalk * eDepth * 1.15 : 0), eOn && eTone);
       paintLean("d2cut", state.d2cut * Math.pow(2, eTone ? evoWalk * eDepth * 0.9 : 0), eOn && eTone);
       paintLean("noiseLevel", Math.max(0, (state.noiseLevel || 0) * (1 + (eWeather ? evoWalk * eDepth * 0.55 : 0))), eOn && eWeather);
@@ -2838,6 +2876,8 @@
     if (p.dusk == null) state.dusk = 0;
     if (p.rumble == null) state.rumble = 22;
     if (p.fxDry == null) state.fxDry = 0;
+    if (p.d1fold == null) state.d1fold = 0;
+    if (p.d2fold == null) state.d2fold = 0;
     resetEvolve();
     state.cables = Array.isArray(p.cables) ? p.cables.map(c => ({ from: c.from, to: c.to })) : [];
     writeParams();
@@ -2941,6 +2981,8 @@
     state.d2cut = Math.exp(pick(Math.log(200), Math.log(6000)));
     state.d1xwave = Math.random();
     state.d2xwave = Math.random();
+    state.d1fold = Math.random() < 0.45 ? 0 : pick(0.05, 0.4);
+    state.d2fold = Math.random() < 0.45 ? 0 : pick(0.05, 0.4);
     state.d1oscDepth = pick(-0.5, 0.5);
     state.d2oscDepth = pick(-0.5, 0.5);
     state.d1filDepth = pick(-0.6, 0.6);
