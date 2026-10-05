@@ -763,7 +763,7 @@
     tap Share, then tap Safari. Or host the file on a website and open the https link in Safari.
   </div>
   <h1>Aether Dark</h1>
-  <p class="build-id">Build 2026-09-25k</p>
+  <p class="build-id">Build 2026-10-06a</p>
   <p class="sub">
     Dual-voice drone synthesizer in the Aether series. Two analog-style oscillators,
     a shared drift LFO with unusual shapes, dual 12 dB LP/HP filters, modulated echo
@@ -799,6 +799,22 @@
       <select id="midiMap" title="Controller map">
         <option value="generic">Map: Generic CC</option>
         <option value="midimix">Map: Akai MIDI Mix</option>
+      </select>
+      <select id="midiOut" title="MIDI output port"><option value="">Out: none</option></select>
+      <select id="midiClock" title="Send MIDI clock. One Drift cycle is one quarter note, times the multiplier.">
+        <option value="0">Clock off</option>
+        <option value="1">Clock = Drift</option>
+      </select>
+      <select id="midiMult" title="Clock multiplier. 2 Hz Drift at 1× is 120 BPM.">
+        <option value="1">1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+        <option value="8">8×</option>
+      </select>
+      <select id="midiWave" title="Send Wave I as a CC. Does not set arp tempo.">
+        <option value="0">Wave CC off</option>
+        <option value="1">Wave I → CC1</option>
+        <option value="74">Wave I → CC74</option>
       </select>
       <span id="midiNote">—</span>
     </div>
@@ -1260,7 +1276,7 @@
   </div>
 
   <p class="footer">
-    <span class="build-id">Build 2026-09-25k</span><br>
+    <span class="build-id">Build 2026-10-06a</span><br>
     Part of the Aether instruments. Original dual-voice drone — not affiliated with any
     hardware manufacturer. Use headphones. Click POWER to enable audio.
     MIDI: notes set oscillator pitch, pitch-bend ±2 st, CC1 LFO rate, CC7 master,
@@ -1330,6 +1346,11 @@
     last: null,
     inputs: [],
     access: null,
+    out: null,
+    clockAcc: 0,
+    clockOn: false,
+    lastCc: -1,
+    lastCcAt: 0,
   };
 
   const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
@@ -1961,6 +1982,7 @@
     phase2 = phase1; // shared rate, different shapes
     const w1 = lfoShape(state.wave1 | 0, phase1);
     const w2 = lfoShape2(state.wave2 | 0, phase2);
+    sendMidiClock(dt, rate, w1);
 
     if (ui) {
       document.getElementById("led1").classList.toggle("lit", state.wave1 > 0 && w1 > 0.15);
@@ -3023,8 +3045,10 @@
     midi.d1Hz = null;
     midi.d2Hz = null;
     if (last == null && midi.held.length === 0) {
-      if (!hold) { midi.g1 = 0; midi.g2 = 0; }
+      midi.g1 = hold ? 1 : 0;
+      midi.g2 = hold ? 1 : 0;
       setMidiStatus(midi.access ? "ok" : "", midi.last == null ? "—" : midiLabel(midi.last) + (hold ? " hold" : " off"));
+      if (running) updateStatic();
       return;
     }
     const notes = midi.held.length ? midi.held : (midi.last != null ? [midi.last] : []);
@@ -3065,6 +3089,10 @@
     midi.last = n;
     applyMidiPitches();
     if (!running) start();
+  }
+  function releaseAllNotes() {
+    midi.held = [];
+    applyMidiPitches();
   }
   function noteOff(n) {
     midi.held = midi.held.filter(x => x !== n);
@@ -3176,7 +3204,10 @@
   function onMidiMessage(ev) {
     const d = ev.data;
     if (!d || !d.length) return;
-    const cmd = d[0] & 0xf0;
+    const st = d[0];
+    if (st === 0xfa || st === 0xfb) { start(); return; }
+    if (st === 0xfc) { releaseAllNotes(); stop(); return; }
+    const cmd = st & 0xf0;
     const a = d[1], b = d[2];
     if (midiMapMode() === "midimix" && (cmd === 0x90 || cmd === 0x80) && a <= 30) {
       if (cmd === 0x90 && b > 0) handleMidiMixButton(a);
@@ -3187,7 +3218,10 @@
     else if (cmd === 0xe0) {
       const v14 = (b << 7) | a;
       midi.bend = ((v14 - 8192) / 8192) * 2;
-    } else if (cmd === 0xb0) handleCC(a, b);
+    } else if (cmd === 0xb0) {
+      if (a === 120 || a === 123) releaseAllNotes();
+      else handleCC(a, b);
+    }
     else if (cmd === 0xc0) {
       const keys = Object.keys(presets);
       if (a < keys.length) {
@@ -3223,6 +3257,74 @@
     });
     if (prev && list.some(i => i.id === prev)) sel.value = prev;
     setMidiStatus("ok", "listening");
+    bindMidiOutputs();
+  }
+
+  function bindMidiOutputs() {
+    const sel = document.getElementById("midiOut");
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = "<option value=''>Out: none</option>";
+    midi.out = null;
+    if (!midi.access) return;
+    [...midi.access.outputs.values()].forEach(port => {
+      const o = document.createElement("option");
+      o.value = port.id;
+      o.textContent = "Out: " + (port.name || port.id);
+      sel.appendChild(o);
+    });
+    if (prev) sel.value = prev;
+    pickMidiOut();
+  }
+
+  function pickMidiOut() {
+    const sel = document.getElementById("midiOut");
+    const id = sel ? sel.value : "";
+    const next = id && midi.access ? midi.access.outputs.get(id) : null;
+    if (midi.out && midi.out !== next && midi.clockOn) {
+      try { midi.out.send([0xFC]); } catch (e) {}
+    }
+    midi.out = next || null;
+    midi.clockAcc = 0;
+    if (midi.out && document.getElementById("midiClock").value === "1") {
+      midi.clockOn = true;
+      try { midi.out.send([0xFA]); } catch (e) {}
+    }
+  }
+
+  function sendMidiClock(dt, rate, w1) {
+    if (!midi.out) return;
+    const clock = document.getElementById("midiClock").value === "1";
+    if (clock && !midi.clockOn) {
+      midi.clockOn = true;
+      midi.clockAcc = 0;
+      try { midi.out.send([0xFA]); } catch (e) {}
+    }
+    if (!clock && midi.clockOn) {
+      midi.clockOn = false;
+      try { midi.out.send([0xFC]); } catch (e) {}
+    }
+    if (clock && running) {
+      const mult = +(document.getElementById("midiMult").value || 1);
+      const beatHz = Math.max(0.05, rate) * mult;
+      midi.clockAcc += dt * beatHz * 24;
+      let n = 0;
+      while (midi.clockAcc >= 1 && n < 8) {
+        midi.clockAcc -= 1;
+        n++;
+        try { midi.out.send([0xF8]); } catch (e) {}
+      }
+    }
+    const cc = +(document.getElementById("midiWave").value || 0);
+    if (cc && running) {
+      const now = performance.now();
+      const val = Math.max(0, Math.min(127, Math.round((w1 * 0.5 + 0.5) * 127)));
+      if (val !== midi.lastCc && now - midi.lastCcAt > 25) {
+        midi.lastCc = val;
+        midi.lastCcAt = now;
+        try { midi.out.send([0xB0, cc, val]); } catch (e) {}
+      }
+    }
   }
 
   async function initMidi() {
@@ -3232,8 +3334,9 @@
     }
     try {
       midi.access = await navigator.requestMIDIAccess({ sysex: false });
-      midi.access.onstatechange = bindMidiInputs;
+      midi.access.onstatechange = () => { bindMidiInputs(); bindMidiOutputs(); };
       bindMidiInputs();
+      bindMidiOutputs();
     } catch (e) {
       setMidiStatus("err", "MIDI denied");
     }
